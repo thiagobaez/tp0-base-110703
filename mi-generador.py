@@ -11,13 +11,13 @@ SERVER_IMAGE = "server:latest"
 SERVER_ENTRYPOINT = "python3 /main.py"
 SERVER_ENV_PYTHONUNBUFFERED = "1"
 
-SERVER_CONFIG_VOLUME = "./server/config.ini:/config.ini:ro"
+SERVER_CONFIG_VOLUME = "./server/config.ini:/config.ini"
 
 CLIENT_SERVICE_NAME = "client"
 CLIENT_CONTAINER_NAME_PREFIX = "client"
 CLIENT_IMAGE = "client:latest"
 CLIENT_ENTRYPOINT = "/client"
-CLIENT_CONFIG_VOLUME = "./client/config.yaml:/config.yaml:ro"
+CLIENT_CONFIG_VOLUME = "./client/config.yaml:/config.yaml"
 
 NETWORK = "testing_net"
 NETWORK_DRIVER = "default"
