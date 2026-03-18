@@ -7,17 +7,9 @@
 ## Ejercicio 1
  
 
-El propósito de este ejercicio es desarrollar un script en Bash llamado `generar-compose.sh`, cuya función será automatizar la creación de un archivo `.yaml` con la configuración necesaria para un entorno de Docker Compose.
+El objetivo de este ejercicio es cambiar el comportamiento del Cliente y el Servidor para que los archivos de configuración no queden dentro de la imagen, sino que se mantengan de forma externa.
 
-El archivo generado deberá contemplar:
-
-- Un servicio que actuará como servidor.
-- Un número **N** de servicios cliente.
-- Una red compartida que permita la comunicación entre todos los servicios.
-
-El script Bash funcionará como intermediario, delegando la generación del contenido del archivo al programa `mi-generador.py`, que será el encargado de construir la estructura final del YAML.
-
-Este script podrá ser modificado o ampliado en ejercicios posteriores, incorporando nuevas funcionalidades según los requerimientos.
+Para lograrlo, se incorporaron volúmenes en los archivos docker-compose-dev.yaml y mi-generador.py, permitiendo que la configuración se almacene y persista fuera de los contenedores.
 
 ## Permisos de ejecución
 
@@ -42,5 +34,3 @@ Una vez que se generó el archivo, se puede usar para desplegar el entorno usand
 ```bash
 make docker-compose-up
 ```
-
-Aclaración: el nombre del archivo generado debe ser `docker-compose-dev.yaml`. Si se quiere usar otro con el makefile, hay que modificar el mismo.
