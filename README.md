@@ -4,38 +4,45 @@
 
 **Padrón**: 110703
 
-## Ejercicio 3
+## Ejercicio 4
 
-El objetivo de este ejercicio es crear un script de validación que verifique el correcto funcionamiento del servidor echo sin necesidad de instalar herramientas adicionales en la máquina host.
+El objetivo de este ejercicio es implementar un **graceful shutdown** en cliente y servidor cuando reciben la signal **SIGTERM**.
 
-### Script: `validar-echo-server.sh`
+### Implementación
 
-El script `validar-echo-server.sh` ubicado en la raíz del proyecto permite verificar que el servidor echo funciona correctamente:
+#### Cliente (`client/common/client.go`)
+- **Escucha SIGTERM** mediante un canal de signals
+- **Detiene el loop** de envío de mensajes
+- **Cierra la conexión** con el servidor
+- **Loguea**: `action: sigterm_received | result: success | client_id: X`
 
-**Características:**
-- Utiliza **netcat** (nc) para comunicarse con el servidor
-- **No requiere instalar netcat** en la máquina host (se ejecuta dentro de un container Alpine)
-- **No expone puertos** del servidor en el host (usa la red interna docker: `tp0_testing_net`)
-- Envía un mensaje de prueba (`hello`) y verifica que reciba el mismo mensaje como respuesta
+#### Servidor (`server/main.py`)
+- **Escucha SIGTERM** durante la aceptación de conexiones
+- **Cierra sockets** de clientes
+- **Loguea el cierre** de cada recurso
+- **Timeout**: Respeta el flag `-t` de docker compose
 
-**Funcionamiento:**
-1. Crea un container temporal de Alpine conectado a la red `tp0_testing_net`
-2. Envía el mensaje `hello` al servidor a través de netcat con timeout de 2 segundos
-3. Limpia caracteres de control (\r\n) de la respuesta
-4. Compara la respuesta con el mensaje esperado
+### Flag -t en Docker Compose
 
-**Salida:**
-- Si la validación es exitosa: `action: test_echo_server | result: success`
-- Si falla: `action: test_echo_server | result: fail`
-
-**Uso:**
 ```bash
-./validar-echo-server.sh
+docker compose stop -t 10
 ```
 
-**Requisitos previos:**
-- El docker-compose debe estar ejecutándose: `make docker-compose-up`
-- La red `tp0_testing_net` debe estar activa
+El flag `-t 10` indica:
+- **10 segundos** de grace period (tiempo máximo para graceful shutdown)
+- Si la aplicación NO termina en 10s → **SIGKILL** (termina forzadamente)
+- El servidor/cliente debe capturar SIGTERM y cerrar recursos **antes** de este timeout
+
+### Logging de Cierre
+
+Durante el shutdown, las aplicaciones emiten logs como:
+```
+action: sigterm_received | result: success | client_id: 1
+action: closing_connection | result: success | client_ip: 172.25.125.3
+action: closing_server | result: success | port: 12345
+```
+
+Esto permite validar que todos los recursos se cerraron correctamente.
 
 ## Permisos de ejecución
 
