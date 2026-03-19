@@ -8,6 +8,19 @@ STORAGE_FILEPATH = "./bets.csv"
 """ Simulated winner number in the lottery contest. """
 LOTTERY_WINNER_NUMBER = 7574
 
+CANT_BYTES_HEADER = 2
+
+IDX_AGENCY = 0
+IDX_FIRST_NAME = 1
+IDX_LAST_NAME = 2
+IDX_DNI = 3
+IDX_BIRTHDATE = 4
+IDX_NUMBER = 5
+
+IDX_CONFIRMATION = 0x01
+IDX_CONFIRMATION_SUCCESS = 0x01
+IDX_CONFIRMATION_FAIL = 0x00
+
 
 """ A lottery bet registry. """
 class Bet:
@@ -48,4 +61,76 @@ def load_bets() -> list[Bet]:
         reader = csv.reader(file, quoting=csv.QUOTE_MINIMAL)
         for row in reader:
             yield Bet(row[0], row[1], row[2], row[3], row[4], row[5])
+
+
+def receive_bytes_from_socket(client_socket) -> bytes:
+
+    tam_buffer = int.from_bytes(recvall(client_socket, CANT_BYTES_HEADER), byteorder='big')
+    return recvall(client_socket, tam_buffer)
+
+
+def decode_bet(client_sock) -> Bet:
+
+    bytes_received = receive_bytes_from_socket(client_sock)
+
+    bet_data = bytes_received.decode('utf-8').split(',')
+
+    bet = Bet(
+        agency=bet_data[IDX_AGENCY],
+        first_name=bet_data[IDX_FIRST_NAME],
+        last_name=bet_data[IDX_LAST_NAME],
+        document=bet_data[IDX_DNI],
+        birthdate=bet_data[IDX_BIRTHDATE],
+        number=bet_data[IDX_NUMBER]
+    )
+
+    return bet
+
+def send_confirmation(client_sock, operation_success: bool):
+
+    message = IDX_CONFIRMATION.to_bytes(1, byteorder='big')
+
+    if operation_success:
+        message += IDX_CONFIRMATION_SUCCESS.to_bytes(1, byteorder='big')
+    else:
+        message += IDX_CONFIRMATION_FAIL.to_bytes(1, byteorder='big')
+
+    sendall(client_sock, message)
+
+def recvall(client_sock, n) -> bytes:
+    buffer = bytearray()
+    while len(buffer) < n: # Aseguro que no se produzca un short-read
+        bytes_received = client_sock.recv(n - len(buffer))
+        if not bytes_received:
+            raise ConnectionError("Connection closed by the client.")
+        buffer.extend(bytes_received)
+    return bytes(buffer)
+
+def sendall(client_sock, message):
+
+    if isinstance(message, str):
+        message_bytes = message.encode('utf-8')
+    else:
+        message_bytes = message
+    tam_buffer = len(message_bytes)
+    
+    bytes_sent = 0
+    while bytes_sent < tam_buffer: # Aseguro que no se produzca un short-write
+        sent = client_sock.send(message_bytes[bytes_sent:])
+        if sent == 0:
+            raise ConnectionError("Connection closed by the client.")
+        bytes_sent += sent
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -1,8 +1,7 @@
 package common
 
 import (
-	"bufio"
-	"fmt"
+
 	"net"
 	"time"
 	"os"
@@ -25,14 +24,16 @@ type ClientConfig struct {
 // Client Entity that encapsulates how
 type Client struct {
 	config ClientConfig
+	bet    Bet
 	conn   net.Conn
 }
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
-func NewClient(config ClientConfig) *Client {
+func NewClient(config ClientConfig, bet Bet) *Client {
 	client := &Client{
 		config: config,
+		bet: bet,
 	}
 	return client
 }
@@ -75,42 +76,52 @@ func (c *Client) StartClientLoop() {
 		}
 	}()
 	
-	for msgID := 1; msgID <= c.config.LoopAmount && running; msgID++ {
-		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
-
-		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
+	if err := c.createClientSocket(); err != nil {
+		log.Criticalf(
+			"action: create_client_socket | result: fail | client_id: %v | error: %v",
 			c.config.ID,
-			msgID,
+			err,
 		)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		c.conn.Close()
-
-		if err != nil {
-
-			if !running {
-				log.Infof("action: loop_interrupted | result: success | client_id: %v", c.config.ID)
-				break
-			}
-
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
-			return
-		}
-
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-			c.config.ID,
-			msg,
-		)
-
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
-
+		os.Exit(1)
 	}
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+
+	if err := sendBet(c.conn, c.bet); err != nil {
+		log.Criticalf(
+			"action: send_bet | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		os.Exit(1)
+	} else {
+		log.Infof(
+			"action: apuesta_enviada | result: success | dni: %s | numero: %s",
+			c.bet.Dni,
+			c.bet.Number,
+		)
+	}
+
+	confirmation, err := receiveMessage(c.conn)
+	if err != nil {
+		log.Criticalf(
+			"action: receive_confirmation | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		os.Exit(1)
+	}
+
+	if confirmation {
+		log.Infof(
+			"action: bet_confirmation | result: success | client_id: %v",
+			c.config.ID,
+		)
+	} else {
+		log.Infof(
+			"action: bet_confirmation | result: fail | client_id: %v",
+			c.config.ID,
+		)
+	}
+
+	c.conn.Close()
+
 }

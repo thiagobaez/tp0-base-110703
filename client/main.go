@@ -33,6 +33,11 @@ func InitConfig() (*viper.Viper, error) {
 
 	// Add env variables supported
 	v.BindEnv("id")
+	v.BindEnv("name")
+	v.BindEnv("lastname")
+	v.BindEnv("dni")
+	v.BindEnv("birthdate")
+	v.BindEnv("number")
 	v.BindEnv("server", "address")
 	v.BindEnv("loop", "period")
 	v.BindEnv("loop", "amount")
@@ -53,6 +58,8 @@ func InitConfig() (*viper.Viper, error) {
 		return nil, errors.Wrapf(err, "Could not parse CLI_LOOP_PERIOD env var as time.Duration.")
 	}
 
+	
+	
 	return v, nil
 }
 
@@ -88,6 +95,14 @@ func PrintConfig(v *viper.Viper) {
 		v.GetDuration("loop.period"),
 		v.GetString("log.level"),
 	)
+	log.Infof("action: config | result: success | client_id: %s | name: %s | lastname: %s | dni: %s | birthdate: %s | bet_number: %s",
+		v.GetString("id"),
+		v.GetString("name"),
+		v.GetString("lastname"),
+		v.GetString("dni"),
+		v.GetString("birthdate"),
+		v.GetString("number"),
+	)
 }
 
 func main() {
@@ -110,6 +125,15 @@ func main() {
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	client := common.NewClient(clientConfig)
+	bet := common.Bet{
+		AgencyId:  clientConfig.ID,
+		Name:      v.GetString("name"),
+		Lastname:  v.GetString("lastname"),
+		Dni:       v.GetString("dni"),
+		Birthdate: v.GetString("birthdate"),
+		Number:    v.GetString("number"),
+	}
+
+	client := common.NewClient(clientConfig, bet)
 	client.StartClientLoop()
 }
