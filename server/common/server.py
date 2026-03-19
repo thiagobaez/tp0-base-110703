@@ -1,5 +1,6 @@
 import socket
 import logging
+import signal
 
 
 class Server:
@@ -17,12 +18,24 @@ class Server:
         communication with a client. After client with communucation
         finishes, servers starts to accept new connections again
         """
+        
+        signal.signal(signal.SIGTERM, self.__handle_shutdown)
 
-        # TODO: Modify this program to handle signal to graceful shutdown
-        # the server
         while True:
             client_sock = self.__accept_new_connection()
             self.__handle_client_connection(client_sock)
+
+    def __handle_shutdown(self, signum, frame):
+        """
+        Graceful shutdown of the server
+
+        Function that handles SIGTERM signal to gracefully shutdown the server
+        """
+
+        logging.info(f'action: shutdown | result: in_progress')
+        self._server_socket.close()
+        logging.info(f'action: shutdown | result: success')
+        exit(0)
 
     def __handle_client_connection(self, client_sock):
         """
