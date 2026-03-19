@@ -67,7 +67,7 @@ func (c *Client) StartClientLoop() {
 	// Goroutine que escucha SIGTERM
 	go func() {
 		<-sigs
-		log.Infof("action: sigterm_received | client_id: %v", c.config.ID)
+		log.Infof("action: sigterm_received | result: success | client_id: %v", c.config.ID)
 		running = false
 
 		if c.conn != nil {
