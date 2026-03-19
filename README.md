@@ -4,51 +4,109 @@
 
 **Padrón**: 110703
 
-## Ejercicio 4
+## Ejercicio 5: Sistema de Quinielas Distribuido
 
-El objetivo de este ejercicio es implementar un **graceful shutdown** en cliente y servidor cuando reciben la signal **SIGTERM**.
+### Descripción General
 
-### Implementación
+Este ejercicio implementa un sistema de gestión de apuestas de quinielas distribuido entre clientes (agencias) y un servidor central (Lotería Nacional). Los clientes envían apuestas al servidor, quien las almacena y persiste en una base de datos CSV.
 
-#### Cliente (`client/common/client.go`)
-- **Escucha SIGTERM** mediante un canal de signals
-- **Detiene el loop** de envío de mensajes
-- **Cierra la conexión** con el servidor
-- **Loguea**: `action: sigterm_received | result: success | client_id: X`
+### Campos de la Apuesta
 
-#### Servidor (`server/main.py`)
-- **Escucha SIGTERM** durante la aceptación de conexiones
-- **Cierra sockets** de clientes
-- **Loguea el cierre** de cada recurso
-- **Timeout**: Respeta el flag `-t` de docker compose
+Cada apuesta contiene:
+- **Agencia**: ID de la agencia (extraído del config del cliente)
+- **Nombre**: Nombre de la persona
+- **Apellido**: Apellido de la persona
+- **DNI**: Documento de identidad (sin dígito verificador)
+- **Nacimiento**: Fecha de nacimiento (formato ISO: YYYY-MM-DD)
+- **Número**: Número apostado (entero)
 
-### Flag -t en Docker Compose
+### Protocolo de Comunicación
+
+#### Formato del Mensaje
+
+```
+[Header (2 bytes)][Payload (N bytes)]
+```
+
+- **Header**: Tamaño del payload en big-endian (16 bits)
+- **Payload**: Datos serializados separados por comas (CSV)
+
+#### Ejemplo de Datos Serializados
+```
+1,Thiago,Baez,44555543,2003-02-11,592
+```
+
+#### Confirmación del Servidor
+
+```
+[Tipo (1 byte)][Estado (1 byte)]
+```
+
+- **Tipo**: `0x01` (mensaje de confimación de apuesta)
+- **Estado**: 
+  - `0x01` → Éxito
+  - `0x00` → Error en el servidor
+
+### Compilación y Ejecución
+
+#### Prerrequisitos
+- Docker y Docker Compose
+
+#### Comando de Ejecución
 
 ```bash
-docker compose stop -t 10
+# Iniciar contenedores
+make docker-compose-up
+
+# Ver logs en tiempo real
+make docker-compose-logs
+
+# Detener contenedores
+make docker-compose-down
 ```
 
-El flag `-t 10` indica:
-- **10 segundos** de grace period (tiempo máximo para graceful shutdown)
-- Si la aplicación NO termina en 10s → **SIGKILL** (termina forzadamente)
-- El servidor/cliente debe capturar SIGTERM y cerrar recursos **antes** de este timeout
 
-### Logging de Cierre
+### Implementación Detallada
 
-Durante el shutdown, las aplicaciones emiten logs como:
-```
-action: sigterm_received | result: success | client_id: 1
-action: closing_connection | result: success | client_ip: 172.25.125.3
-action: closing_server | result: success | port: 12345
-```
+#### Lado Cliente (Go)
 
-Esto permite validar que todos los recursos se cerraron correctamente.
+**`client/common/bet.go`**
+- `sendall()`: Implementa la lógica de short-write evitando pérdida de datos
+- `recvall()`: Implementa la lógica de short-read asegurando recepción completa
+- `sendMessage()`: Serializa datos con encabezado de tamaño
+- `sendBet()`: Formatea una apuesta como string CSV
+- `receiveMessage()`: Recibe y valida confirmación del servidor
 
-## Permisos de ejecución
+**`client/common/client.go`**
+- `StartClientLoop()`: Loop principal que envía apuestas repetidamente
+- Logging estructurado con niveles (INFO, CRITICAL)
 
-Si aparecen errores relacionados con permisos, habilita la ejecución:
+#### Lado Servidor (Python)
 
-```bash
-chmod +x validar-echo-server.sh
-chmod +x generar-compose.sh
-```
+**`server/common/utils.py`**
+- `Bet`: Clase que representa una apuesta
+- `recvall()`: Implementa recepción completa de datos
+- `sendall()`: Implementa envío completo de datos
+- `receive_bytes_from_socket()`: Lee header y payload
+- `decode_bet()`: Parsea CSV a objeto Bet
+- `send_confirmation()`: Envía respuesta binaria al cliente
+- `store_bets()`: Persiste apuestas en CSV (función proporcionada por cátedra)
+
+**`server/common/server.py`**
+- `run()`: Loop de aceptación de conexiones
+- `__handle_client_connection()`: Procesa una apuesta y envía confirmación
+
+### Aspectos Técnicos Implementados
+
+#### Manejo de Errores
+- Validación de formato de datos
+- Detección de desconexiones abruptas
+- Manejo de errores de I/O en sockets
+
+#### Short Read/Write
+- Loops en `sendall()` y `recvall()` aseguran envío/recepción completa
+- Evita pérdida de datos por buffers parciales del SO
+
+#### Serialización
+- Datos serializados como CSV para facilitar parseo y persistencia
+- Encabezado de tamaño (2 bytes) precede cada mensaje
