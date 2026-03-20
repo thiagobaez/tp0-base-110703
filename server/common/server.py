@@ -1,7 +1,7 @@
 import socket
 import logging
 import signal
-from .utils import Bet, decode_bet, store_bets, send_confirmation
+from .utils import Bet, decode_bets, store_bets, send_confirmation
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
@@ -44,16 +44,24 @@ class Server:
         client socket will also be closed
         """
         try:
-            bet = decode_bet(client_sock)
-            addr = client_sock.getpeername()
-            logging.info(f'action: received_bet | result: success | ip: {addr[0]}')
-            store_bets([bet])
-            logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+            total_bets = 0
+            while True: 
+                try:
+                    bets = decode_bets(client_sock)
+                    if not bets:
+                        break
+                    store_bets(bets)
+                    logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
+                    total_bets += len(bets)
+                except ConnectionError:
+                    break
             send_confirmation(client_sock, True)
-
-        except OSError as e:
+        except Exception as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
-            send_confirmation(client_sock, False)
+            try:
+                send_confirmation(client_sock, False)
+            except:
+                pass
         finally:
             client_sock.close()
 

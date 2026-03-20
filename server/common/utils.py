@@ -69,22 +69,29 @@ def receive_bytes_from_socket(client_socket) -> bytes:
     return recvall(client_socket, tam_buffer)
 
 
-def decode_bet(client_sock) -> Bet:
+def decode_bets(client_sock) -> list[Bet]:
 
     bytes_received = receive_bytes_from_socket(client_sock)
 
-    bet_data = bytes_received.decode('utf-8').split(',')
-
-    bet = Bet(
-        agency=bet_data[IDX_AGENCY],
-        first_name=bet_data[IDX_FIRST_NAME],
-        last_name=bet_data[IDX_LAST_NAME],
-        document=bet_data[IDX_DNI],
-        birthdate=bet_data[IDX_BIRTHDATE],
-        number=bet_data[IDX_NUMBER]
-    )
-
-    return bet
+    bets_string = bytes_received.decode('utf-8')
+    
+    lines = bets_string.strip().split('\n')
+    
+    bets = []
+    for line in lines:
+        if line.strip():
+            fields = line.split(',')
+            bet = Bet(
+                agency=fields[IDX_AGENCY],
+                first_name=fields[IDX_FIRST_NAME],
+                last_name=fields[IDX_LAST_NAME],
+                document=fields[IDX_DNI],
+                birthdate=fields[IDX_BIRTHDATE],
+                number=fields[IDX_NUMBER]
+            )
+            bets.append(bet)
+    
+    return bets
 
 def send_confirmation(client_sock, operation_success: bool):
 

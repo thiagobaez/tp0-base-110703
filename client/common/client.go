@@ -19,22 +19,32 @@ type ClientConfig struct {
 	ServerAddress string
 	LoopAmount    int
 	LoopPeriod    time.Duration
+	BatchMaxAmount int
 }
 
 // Client Entity that encapsulates how
 type Client struct {
 	config ClientConfig
-	bet    Bet
+	bets   []Bet
 	conn   net.Conn
 }
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
-func NewClient(config ClientConfig, bet Bet) *Client {
+func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config: config,
-		bet: bet,
 	}
+
+	bets, err := loadBetsFromFile(config.ID)
+
+	if err != nil {
+		log.Criticalf("action: load_bets_from_file | result: fail | client_id: %v | error: %v", config.ID, err)
+		os.Exit(1)
+	}
+
+	client.bets = bets
+
 	return client
 }
 
@@ -85,18 +95,18 @@ func (c *Client) StartClientLoop() {
 		os.Exit(1)
 	}
 
-	if err := sendBet(c.conn, c.bet); err != nil {
+	if err := sendBets(c.conn, c.bets, c.config.BatchMaxAmount); err != nil {
 		log.Criticalf(
-			"action: send_bet | result: fail | client_id: %v | error: %v",
+			"action: send_bets | result: fail | client_id: %v | error: %v",
 			c.config.ID,
 			err,
 		)
 		os.Exit(1)
 	} else {
 		log.Infof(
-			"action: apuesta_enviada | result: success | dni: %s | numero: %s",
-			c.bet.Dni,
-			c.bet.Number,
+			"action: apuesta_enviada | result: success | client_id: %v | cantidad: %v",
+			c.config.ID,
+			len(c.bets),
 		)
 	}
 

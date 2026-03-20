@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"errors"
 	"net"
+	"os"
+	"encoding/csv"
 )
 
 const (
 	LENGTH_HEADER             = 2
 	MAX_MESSAGE_SIZE          = 1024
+	MAX_BATCH_SIZE_BYTES      = 8192
 	IDX_MESSAGE_CONFIRMATION  = 0x01
 	IDX_CONFIRMATION_SUCCESS  = 0x01
 	IDX_CONFIRMATION_FAIL     = 0x00
@@ -56,10 +59,6 @@ func sendMessage(conn net.Conn, message string) error {
 
 	buffer := []byte(message)
 	
-	if len(buffer) > MAX_MESSAGE_SIZE {
-		return errors.New("message too long")
-	}
-	
 	tamanio_mensaje := uint16(len(buffer))
 	header := make([]byte, LENGTH_HEADER)
 
@@ -79,18 +78,75 @@ func sendMessage(conn net.Conn, message string) error {
 }
 
 
-func sendBet(conn net.Conn, bet Bet) error {
+func loadBetsFromFile(id string) ([]Bet, error) {
 
-	message := fmt.Sprintf("%s,%s,%s,%s,%s,%s",
-	 bet.AgencyId, 
-	 bet.Name, 
-	 bet.Lastname, 
-	 bet.Dni, 
-	 bet.Birthdate, 
-	 bet.Number)
+	file, err := os.Open("agency.csv")
+	if err != nil {
+		log.Errorf("action: open_csv_file | result: fail | client_id: %v | error: %v", id, err)
+		return []Bet{}, err
+	}
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		log.Errorf("action: read_bets_from_file | result: fail | client_id: %v | error: %v", id, err)
+		file.Close()
+		return []Bet{}, err
+	}
+
+	bets := []Bet{}
+	for _, record := range records {
+		bet := Bet{
+			AgencyId:  id,
+			Name:      record[0],
+			Lastname:  record[1],
+			Dni:       record[2],
+			Birthdate: record[3],
+			Number:    record[4],
+		}
+		bets = append(bets, bet)
+	}
+	file.Close()
+	return bets, nil
+}
 
 
-	return sendMessage(conn, message)
+func sendBets(conn net.Conn, bets []Bet, maxBatchAmount int) error {
+	i := 0
+	for i < len(bets) {
+		message := ""
+		betsInBatch := 0
+		
+		for i < len(bets) && betsInBatch < maxBatchAmount {
+			bet := bets[i]
+			betLine := fmt.Sprintf("%s,%s,%s,%s,%s,%s\n",
+				bet.AgencyId,
+				bet.Name,
+				bet.Lastname,
+				bet.Dni,
+				bet.Birthdate,
+				bet.Number,
+			)
+			
+			if len(message)+len(betLine) > MAX_BATCH_SIZE_BYTES && betsInBatch > 0 {
+				break
+			}
+			
+			message += betLine
+			betsInBatch++
+			i++
+		}
+		
+		if err := sendMessage(conn, message); err != nil {
+			return err
+		}
+	}
+
+	if err := sendMessage(conn, ""); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func receiveMessage(conn net.Conn) (bool, error) {

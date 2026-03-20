@@ -33,15 +33,11 @@ func InitConfig() (*viper.Viper, error) {
 
 	// Add env variables supported
 	v.BindEnv("id")
-	v.BindEnv("name")
-	v.BindEnv("lastname")
-	v.BindEnv("dni")
-	v.BindEnv("birthdate")
-	v.BindEnv("number")
 	v.BindEnv("server", "address")
 	v.BindEnv("loop", "period")
 	v.BindEnv("loop", "amount")
 	v.BindEnv("log", "level")
+	v.BindEnv("batch", "maxAmount")
 
 	// Try to read configuration from config file. If config file
 	// does not exists then ReadInConfig will fail but configuration
@@ -88,20 +84,13 @@ func InitLogger(logLevel string) error {
 // PrintConfig Print all the configuration parameters of the program.
 // For debugging purposes only
 func PrintConfig(v *viper.Viper) {
-	log.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_amount: %v | loop_period: %v | log_level: %s",
+	log.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_amount: %v | loop_period: %v | log_level: %s | batch_max_amount: %v",
 		v.GetString("id"),
 		v.GetString("server.address"),
 		v.GetInt("loop.amount"),
 		v.GetDuration("loop.period"),
 		v.GetString("log.level"),
-	)
-	log.Infof("action: config | result: success | client_id: %s | name: %s | lastname: %s | dni: %s | birthdate: %s | bet_number: %s",
-		v.GetString("id"),
-		v.GetString("name"),
-		v.GetString("lastname"),
-		v.GetString("dni"),
-		v.GetString("birthdate"),
-		v.GetString("number"),
+		v.GetInt("batch.maxAmount"),
 	)
 }
 
@@ -123,17 +112,9 @@ func main() {
 		ID:            v.GetString("id"),
 		LoopAmount:    v.GetInt("loop.amount"),
 		LoopPeriod:    v.GetDuration("loop.period"),
+		BatchMaxAmount: v.GetInt("batch.maxAmount"),
 	}
 
-	bet := common.Bet{
-		AgencyId:  clientConfig.ID,
-		Name:      v.GetString("name"),
-		Lastname:  v.GetString("lastname"),
-		Dni:       v.GetString("dni"),
-		Birthdate: v.GetString("birthdate"),
-		Number:    v.GetString("number"),
-	}
-
-	client := common.NewClient(clientConfig, bet)
+	client := common.NewClient(clientConfig)
 	client.StartClientLoop()
 }

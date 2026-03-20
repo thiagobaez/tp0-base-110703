@@ -19,12 +19,6 @@ CLIENT_IMAGE = "client:latest"
 CLIENT_ENTRYPOINT = "/client"
 CLIENT_CONFIG_VOLUME = "./client/config.yaml:/config.yaml"
 
-CLIENT_NAME = "Thiago Fernando"
-CLIENT_LASTNAME = "Baez"
-CLIENT_DNI = "44555543"
-CLIENT_BIRTHDATE = "2003-02-11"
-CLIENT_BET_NUMBER = "7"
-
 
 NETWORK = "testing_net"
 NETWORK_DRIVER = "default"
@@ -59,17 +53,13 @@ def docker_compose_generate(output_filename: str, number_of_clients: int):
             f.write(f"    entrypoint: {CLIENT_ENTRYPOINT}\n")
             f.write("    environment:\n")
             f.write(f"      - CLI_ID={i}\n")
-            f.write(f"      - CLI_NAME={CLIENT_NAME}\n")
-            f.write(f"      - CLI_LASTNAME={CLIENT_LASTNAME}\n")
-            f.write(f"      - CLI_DNI={CLIENT_DNI}\n")
-            f.write(f"      - CLI_BIRTHDATE={CLIENT_BIRTHDATE}\n")
-            f.write(f"      - CLI_NUMBER={CLIENT_BET_NUMBER}\n")
             f.write("    networks:\n")
             f.write(f"      - {NETWORK}\n")
             f.write("    depends_on:\n")
             f.write(f"      - {SERVER_SERVICE_NAME}\n")
             f.write("    volumes:\n")
             f.write(f"      - {CLIENT_CONFIG_VOLUME}\n")
+            f.write(f"      - ./.data/agency-{i}.csv:/agency.csv\n")            
             f.write("\n")
 
         # Definir la red

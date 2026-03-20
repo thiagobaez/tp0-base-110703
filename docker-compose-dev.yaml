@@ -17,17 +17,13 @@ services:
     entrypoint: /client
     environment:
       - CLI_ID=1
-      - CLI_NAME=Thiago Fernando
-      - CLI_LASTNAME=Baez
-      - CLI_DNI=44555543
-      - CLI_BIRTHDATE=2003-02-11
-      - CLI_NUMBER=7
     networks:
       - testing_net
     depends_on:
       - server
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./.data/agency-1.csv:/agency.csv
 
 networks:
   testing_net:
