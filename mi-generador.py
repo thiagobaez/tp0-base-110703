@@ -9,16 +9,15 @@ SERVER_SERVICE_NAME = "server"
 SERVER_CONTAINER_NAME = "server"
 SERVER_IMAGE = "server:latest"
 SERVER_ENTRYPOINT = "python3 /main.py"
-SERVER_ENVIRONMENT_VARIABLES = {
-    "PYTHONUNBUFFERED": "1",
-    "LOGGING_LEVEL": "DEBUG"
-}
+SERVER_ENV_PYTHONUNBUFFERED = "1"
+
+SERVER_CONFIG_VOLUME = "./server/config.ini:/config.ini"
 
 CLIENT_SERVICE_NAME = "client"
 CLIENT_CONTAINER_NAME_PREFIX = "client"
 CLIENT_IMAGE = "client:latest"
 CLIENT_ENTRYPOINT = "/client"
-CLIENT_ENV_LOG_LEVEL = "DEBUG"
+CLIENT_CONFIG_VOLUME = "./client/config.yaml:/config.yaml"
 
 NETWORK = "testing_net"
 NETWORK_DRIVER = "default"
@@ -36,10 +35,11 @@ def docker_compose_generate(output_filename: str, number_of_clients: int):
         f.write(f"    image: {SERVER_IMAGE}\n")
         f.write(f"    entrypoint: {SERVER_ENTRYPOINT}\n")
         f.write("    environment:\n")
-        for key, value in SERVER_ENVIRONMENT_VARIABLES.items():
-            f.write(f"      - {key}={value}\n")
+        f.write(f"      - PYTHONUNBUFFERED={SERVER_ENV_PYTHONUNBUFFERED}\n")
         f.write("    networks:\n")
         f.write(f"      - {NETWORK}\n")
+        f.write("    volumes:\n")
+        f.write(f"      - {SERVER_CONFIG_VOLUME}\n")
         f.write("\n")
         
         # Definir los servicios de los clientes
@@ -52,11 +52,12 @@ def docker_compose_generate(output_filename: str, number_of_clients: int):
             f.write(f"    entrypoint: {CLIENT_ENTRYPOINT}\n")
             f.write("    environment:\n")
             f.write(f"      - CLI_ID={i}\n")
-            f.write(f"      - LOG_LEVEL={CLIENT_ENV_LOG_LEVEL}\n")
             f.write("    networks:\n")
             f.write(f"      - {NETWORK}\n")
             f.write("    depends_on:\n")
             f.write(f"      - {SERVER_SERVICE_NAME}\n")
+            f.write("    volumes:\n")
+            f.write(f"      - {CLIENT_CONFIG_VOLUME}\n")
             f.write("\n")
 
         # Definir la red
