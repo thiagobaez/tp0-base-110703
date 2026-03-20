@@ -57,7 +57,7 @@ class Server:
                     break
             send_confirmation(client_sock, True)
         except Exception as e:
-            logging.error(f"action: receive_message | result: fail | error: {e}")
+            logging.error(f"action: apuesta_recibida | result: fail | cantidad: {len(bets)}")
             try:
                 send_confirmation(client_sock, False)
             except:
