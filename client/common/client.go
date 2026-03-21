@@ -132,6 +132,47 @@ func (c *Client) StartClientLoop() {
 		)
 	}
 
+	// Enviar consulta de ganadores (mensaje vacío)
+	if err := sendMessage(c.conn, ""); err != nil {
+		log.Criticalf(
+			"action: send_winners_query | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		os.Exit(1)
+	}
+
+	// Recibir respuesta de ganadores
+	headerBytes, err := recvall(c.conn, LENGTH_HEADER)
+	if err != nil {
+		log.Criticalf(
+			"action: receive_winners_count | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		os.Exit(1)
+	}
+
+	size := int(headerBytes[0])<<8 | int(headerBytes[1])
+	winnersCountBytes, err := recvall(c.conn, size)
+	if err != nil {
+		log.Criticalf(
+			"action: receive_winners_count | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		os.Exit(1)
+	}
+
+	winnersCountStr := string(winnersCountBytes)
+	var winnersCount int
+	fmt.Sscanf(winnersCountStr, "%d", &winnersCount)
+
+	log.Infof(
+		"action: consulta_ganadores | result: success | cant_ganadores: %v",
+		winnersCount,
+	)
+
 	c.conn.Close()
 
 }

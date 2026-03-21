@@ -15,6 +15,9 @@ const (
 	IDX_MESSAGE_CONFIRMATION  = 0x01
 	IDX_CONFIRMATION_SUCCESS  = 0x01
 	IDX_CONFIRMATION_FAIL     = 0x00
+	IDX_LOTTERY_RESULT        = 0x02
+	IDX_LOTTERY_RESULT_WINNER = 0x01
+	IDX_LOTTERY_RESULT_LOSER  = 0x00
 )
 
 
@@ -151,7 +154,7 @@ func sendBets(conn net.Conn, bets []Bet, maxBatchAmount int) error {
 
 func receiveMessage(conn net.Conn) (bool, error) {
 
-	response, err := recvall(conn, LENGTH_HEADER)
+	response, err := recvall(conn, 2)
 	if err != nil {
 		return false, err
 	}
@@ -163,6 +166,10 @@ func receiveMessage(conn net.Conn) (bool, error) {
 			return false, nil
 		}
 	}
+
+	if response[0] == IDX_LOTTERY_RESULT {
+
+
 
 	return false, errors.New("invalid response")
 }

@@ -1,13 +1,18 @@
 import socket
 import logging
 import signal
-from .utils import Bet, decode_bets, store_bets, send_confirmation
+import threading
+from .utils import Bet, decode_bets, store_bets, send_confirmation, load_bets, has_won, sendall
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+        self.agencies_finished_count = 0
+        self.sorteo_completed = False
+        self.winners = []  # Almacena ganadores con formato (agency, dni)
+        self.lock = threading.Lock()
 
     def run(self):
         """
@@ -43,19 +48,60 @@ class Server:
         If a problem arises in the communication with the client, the
         client socket will also be closed
         """
+        agency_id = None
         try:
-            total_bets = 0
+            # Fase 1: Recibir batches de apuestas
             while True: 
                 try:
                     bets = decode_bets(client_sock)
                     if not bets:
+                        # Mensaje vacío = fin de apuestas
                         break
+                    # Guardar agencia del primer bet para después
+                    if agency_id is None:
+                        agency_id = str(bets[0].agency)
                     store_bets(bets)
                     logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
-                    total_bets += len(bets)
                 except ConnectionError:
                     break
+            
+            # Notificación de fin de apuestas
             send_confirmation(client_sock, True)
+            
+            # Incrementar contador de agencias completadas
+            with self.lock:
+                self.agencies_finished_count += 1
+                if self.agencies_finished_count == 5:
+                    # Ejecutar sorteo
+                    self.__perform_lottery()
+                    self.sorteo_completed = True
+            
+            # Fase 2: Esperar consulta de ganadores
+            while True:
+                try:
+                    # Recibir consulta de ganadores
+                    query = decode_bets(client_sock)  # Usamos decode_bets pero debería ser vacío
+                    
+                    # Si sorteo no se completó, esperar
+                    if not self.sorteo_completed:
+                        send_confirmation(client_sock, False)
+                        continue
+                    
+                    # Obtener ganadores de esta agencia
+                    agency_winners = [dni for (agency, dni) in self.winners if agency == int(agency_id)]
+                    
+                    # Enviar cantidad de ganadores
+                    response = str(len(agency_winners))
+                    tam_buffer = len(response.encode('utf-8'))
+                    header = tam_buffer.to_bytes(2, byteorder='big')
+                    sendall(client_sock, header + response.encode('utf-8'))
+                    
+                    logging.info(f'action: consulta_ganadores | result: success | cantidad: {len(agency_winners)}')
+                    break
+                    
+                except ConnectionError:
+                    break
+            
         except Exception as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
             try:
@@ -64,6 +110,21 @@ class Server:
                 pass
         finally:
             client_sock.close()
+    
+    def __perform_lottery(self):
+        """
+        Ejecuta el sorteo cargando todas las apuestas y verificando ganadores
+        """
+        try:
+            all_bets = list(load_bets())
+            winners = []
+            for bet in all_bets:
+                if has_won(bet):
+                    winners.append((bet.agency, bet.document))
+            self.winners = winners
+            logging.info(f'action: sorteo | result: success')
+        except Exception as e:
+            logging.error(f"action: sorteo | result: fail | error: {e}")
 
     def __accept_new_connection(self):
         """
