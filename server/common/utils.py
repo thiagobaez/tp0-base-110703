@@ -20,6 +20,8 @@ IDX_NUMBER = 5
 IDX_CONFIRMATION = 0x01
 IDX_CONFIRMATION_SUCCESS = 0x01
 IDX_CONFIRMATION_FAIL = 0x00
+IDX_REQUEST_WINNERS = 0x02
+IDX_WINNERS_LIST = 0x03  # Header para lista de ganadores
 
 
 """ A lottery bet registry. """
@@ -93,6 +95,16 @@ def decode_bets(client_sock) -> list[Bet]:
     
     return bets
 
+def receive_query(client_sock) -> bool:
+
+    header = recvall(client_sock, 1)
+
+    if header == IDX_REQUEST_WINNERS.to_bytes(1, byteorder='big'):
+        return True
+
+    return False
+
+
 def send_confirmation(client_sock, operation_success: bool):
 
     message = IDX_CONFIRMATION.to_bytes(1, byteorder='big')
@@ -103,6 +115,21 @@ def send_confirmation(client_sock, operation_success: bool):
         message += IDX_CONFIRMATION_FAIL.to_bytes(1, byteorder='big')
 
     sendall(client_sock, message)
+
+def send_winners(client_sock, winners: list[str]):
+    """
+    Envía la lista de DNIs de ganadores al cliente.
+    Formato: 0x03 (header) + tamaño (2 bytes) + DNIs separados por coma
+    """
+    winners_csv = ','.join(winners)
+    message_bytes = winners_csv.encode('utf-8')
+    tam_buffer = len(message_bytes)
+    
+    # Construir: header (0x03) + tamaño (2 bytes) + DNIs
+    response_header = IDX_WINNERS_LIST.to_bytes(1, byteorder='big')
+    size_header = tam_buffer.to_bytes(2, byteorder='big')
+    sendall(client_sock, response_header + size_header + message_bytes)
+
 
 def recvall(client_sock, n) -> bytes:
     buffer = bytearray()

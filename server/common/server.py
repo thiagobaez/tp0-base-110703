@@ -2,7 +2,11 @@ import socket
 import logging
 import signal
 import threading
-from .utils import Bet, decode_bets, store_bets, send_confirmation, load_bets, has_won, sendall
+import time
+from .utils import Bet, decode_bets, store_bets, send_confirmation, load_bets, has_won, send_winners, receive_query
+
+CANT_AGENCIES = 5
+
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
@@ -50,14 +54,11 @@ class Server:
         """
         agency_id = None
         try:
-            # Fase 1: Recibir batches de apuestas
             while True: 
                 try:
                     bets = decode_bets(client_sock)
                     if not bets:
-                        # Mensaje vacío = fin de apuestas
                         break
-                    # Guardar agencia del primer bet para después
                     if agency_id is None:
                         agency_id = str(bets[0].agency)
                     store_bets(bets)
@@ -65,38 +66,26 @@ class Server:
                 except ConnectionError:
                     break
             
-            # Notificación de fin de apuestas
             send_confirmation(client_sock, True)
             
-            # Incrementar contador de agencias completadas
             with self.lock:
                 self.agencies_finished_count += 1
-                if self.agencies_finished_count == 5:
-                    # Ejecutar sorteo
+                if self.agencies_finished_count == CANT_AGENCIES:
                     self.__perform_lottery()
                     self.sorteo_completed = True
             
-            # Fase 2: Esperar consulta de ganadores
             while True:
                 try:
-                    # Recibir consulta de ganadores
-                    query = decode_bets(client_sock)  # Usamos decode_bets pero debería ser vacío
+                    is_winner_query = receive_query(client_sock)
+
+                    if is_winner_query:
+                        # Esperar a que el sorteo se complete si no está completado aún
+                        while not self.sorteo_completed:
+                            time.sleep(0.1)
                     
-                    # Si sorteo no se completó, esperar
-                    if not self.sorteo_completed:
-                        send_confirmation(client_sock, False)
-                        continue
-                    
-                    # Obtener ganadores de esta agencia
                     agency_winners = [dni for (agency, dni) in self.winners if agency == int(agency_id)]
-                    
-                    # Enviar cantidad de ganadores
-                    response = str(len(agency_winners))
-                    tam_buffer = len(response.encode('utf-8'))
-                    header = tam_buffer.to_bytes(2, byteorder='big')
-                    sendall(client_sock, header + response.encode('utf-8'))
-                    
-                    logging.info(f'action: consulta_ganadores | result: success | cantidad: {len(agency_winners)}')
+                    send_winners(client_sock, agency_winners)
+                    logging.info(f'action: consulta_ganadores | result: success | cant_ganadores: {len(agency_winners)}')
                     break
                     
                 except ConnectionError:

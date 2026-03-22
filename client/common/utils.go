@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"encoding/csv"
+	"strings"
 )
 
 const (
@@ -18,6 +19,8 @@ const (
 	IDX_LOTTERY_RESULT        = 0x02
 	IDX_LOTTERY_RESULT_WINNER = 0x01
 	IDX_LOTTERY_RESULT_LOSER  = 0x00
+	IDX_WINNERS_LIST          = 0x03
+	IDX_REQUEST_WINNERS 	  = 0x02
 )
 
 
@@ -152,9 +155,17 @@ func sendBets(conn net.Conn, bets []Bet, maxBatchAmount int) error {
 	return nil
 }
 
+func sendWinnersQuery(conn net.Conn) error {
+	header := []byte{IDX_REQUEST_WINNERS}
+	if err := sendall(conn, header); err != nil {
+		return err
+	}
+	return nil
+}
+
 func receiveMessage(conn net.Conn) (bool, error) {
 
-	response, err := recvall(conn, 2)
+	response, err := recvall(conn, LENGTH_HEADER)
 	if err != nil {
 		return false, err
 	}
@@ -167,9 +178,38 @@ func receiveMessage(conn net.Conn) (bool, error) {
 		}
 	}
 
-	if response[0] == IDX_LOTTERY_RESULT {
-
-
-
 	return false, errors.New("invalid response")
+}
+
+func receiveWinners(conn net.Conn) (int, error) {
+	
+	headerByte, err := recvall(conn, 1)
+	if err != nil {
+		return 0, err
+	}
+
+	if headerByte[0] != IDX_WINNERS_LIST {
+		return 0, errors.New("invalid winners list header")
+	}
+
+	sizeBytes, err := recvall(conn, LENGTH_HEADER)
+	if err != nil {
+		return 0, err
+	}
+
+	size := int(sizeBytes[0])<<8 | int(sizeBytes[1])
+	winnersData, err := recvall(conn, size)
+	if err != nil {
+		return 0, err
+	}
+
+	winnersStr := string(winnersData)
+	var winnersCount int
+	if winnersStr == "" {
+		winnersCount = 0
+	} else {
+		winnersCount = len(strings.Split(winnersStr, ","))
+	}
+
+	return winnersCount, nil
 }
