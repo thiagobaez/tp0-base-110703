@@ -1,8 +1,6 @@
 import socket
 import logging
 import signal
-import threading
-import time
 from .utils import Bet, decode_bets, store_bets, send_confirmation, load_bets, has_won, send_winners, receive_query
 
 CANT_AGENCIES = 5
@@ -13,25 +11,21 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
-        self.agencies_finished_count = 0
-        self.sorteo_completed = False
-        self.winners = []  # Almacena ganadores con formato (agency, dni)
-        self.lock = threading.Lock()
+        self.winners = []  
 
     def run(self):
-        """
-        Dummy Server loop
-
-        Server that accept a new connections and establishes a
-        communication with a client. After client with communucation
-        finishes, servers starts to accept new connections again
-        """
         
         signal.signal(signal.SIGTERM, self.__handle_shutdown)
 
-        while True:
+        for _ in range(CANT_AGENCIES):
             client_sock = self.__accept_new_connection()
-            self.__handle_client_connection(client_sock)
+            self.__handle_bets(client_sock)
+        
+        self.__perform_lottery()
+        
+        for _ in range(CANT_AGENCIES):
+            client_sock = self.__accept_new_connection()
+            self.__handle_query(client_sock)
 
     def __handle_shutdown(self, signum, frame):
         """
@@ -45,13 +39,7 @@ class Server:
         logging.info(f'action: shutdown | result: success')
         exit(0)
 
-    def __handle_client_connection(self, client_sock):
-        """
-        Read message from a specific client socket and closes the socket
-
-        If a problem arises in the communication with the client, the
-        client socket will also be closed
-        """
+    def __handle_bets(self, client_sock):
         agency_id = None
         try:
             while True: 
@@ -67,36 +55,32 @@ class Server:
                     break
             
             send_confirmation(client_sock, True)
-            
-            with self.lock:
-                self.agencies_finished_count += 1
-                if self.agencies_finished_count == CANT_AGENCIES:
-                    self.__perform_lottery()
-                    self.sorteo_completed = True
-            
-            while True:
-                try:
-                    is_winner_query = receive_query(client_sock)
-
-                    if is_winner_query:
-                        # Esperar a que el sorteo se complete si no está completado aún
-                        while not self.sorteo_completed:
-                            time.sleep(0.1)
-                    
-                    agency_winners = [dni for (agency, dni) in self.winners if agency == int(agency_id)]
-                    send_winners(client_sock, agency_winners)
-                    logging.info(f'action: consulta_ganadores | result: success | cant_ganadores: {len(agency_winners)}')
-                    break
-                    
-                except ConnectionError:
-                    break
+            logging.info(f'action: apuestas_confirmadas | result: success | agency_id: {agency_id}')
             
         except Exception as e:
-            logging.error(f"action: receive_message | result: fail | error: {e}")
+            logging.error(f"action: receive_bets | result: fail | error: {e}")
             try:
                 send_confirmation(client_sock, False)
             except:
                 pass
+        finally:
+            client_sock.close()
+    
+    def __handle_query(self, client_sock):
+        """
+        Fase 3: Recibe query de ganadores de un cliente y envía resultado
+        """
+        try:
+            is_winner_query, agency_id = receive_query(client_sock)
+            
+            if is_winner_query:
+                # El sorteo ya está completado en esta fase
+                agency_winners = [dni for (agency, dni) in self.winners if agency == agency_id]
+                send_winners(client_sock, agency_winners)
+                logging.info(f'action: consulta_ganadores | result: success | cant_ganadores: {len(agency_winners)}')
+            
+        except Exception as e:
+            logging.error(f"action: receive_query | result: fail | error: {e}")
         finally:
             client_sock.close()
     

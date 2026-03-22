@@ -95,14 +95,15 @@ def decode_bets(client_sock) -> list[Bet]:
     
     return bets
 
-def receive_query(client_sock) -> bool:
-
+def receive_query(client_sock) -> tuple:
     header = recvall(client_sock, 1)
 
     if header == IDX_REQUEST_WINNERS.to_bytes(1, byteorder='big'):
-        return True
+        agency_id_byte = recvall(client_sock, 1)
+        agency_id = int.from_bytes(agency_id_byte, byteorder='big')
+        return (True, agency_id)
 
-    return False
+    return (False, None)
 
 
 def send_confirmation(client_sock, operation_success: bool):
@@ -117,10 +118,7 @@ def send_confirmation(client_sock, operation_success: bool):
     sendall(client_sock, message)
 
 def send_winners(client_sock, winners: list[str]):
-    """
-    Envía la lista de DNIs de ganadores al cliente.
-    Formato: 0x03 (header) + tamaño (2 bytes) + DNIs separados por coma
-    """
+
     winners_csv = ','.join(winners)
     message_bytes = winners_csv.encode('utf-8')
     tam_buffer = len(message_bytes)

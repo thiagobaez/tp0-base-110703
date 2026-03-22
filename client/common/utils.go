@@ -7,6 +7,7 @@ import (
 	"os"
 	"encoding/csv"
 	"strings"
+	"strconv"
 )
 
 const (
@@ -155,8 +156,8 @@ func sendBets(conn net.Conn, bets []Bet, maxBatchAmount int) error {
 	return nil
 }
 
-func sendWinnersQuery(conn net.Conn) error {
-	header := []byte{IDX_REQUEST_WINNERS}
+func sendWinnersQuery(conn net.Conn, agencyID int) error {
+	header := []byte{IDX_REQUEST_WINNERS, byte(agencyID)}
 	if err := sendall(conn, header); err != nil {
 		return err
 	}
@@ -212,4 +213,12 @@ func receiveWinners(conn net.Conn) (int, error) {
 	}
 
 	return winnersCount, nil
+}
+
+func stringToInt(s string) int {
+	val, err := strconv.Atoi(s)
+	if err != nil {
+		return 0
+	}
+	return val
 }

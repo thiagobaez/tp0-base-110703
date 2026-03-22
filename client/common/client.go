@@ -66,16 +66,11 @@ func (c *Client) createClientSocket() error {
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
-	// There is an autoincremental msgID to identify every message sent
-	// Messages if the message amount threshold has not been surpassed
-
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM)
 
-	// Flag para cortar ejecución
 	running := true
 
-	// Goroutine que escucha SIGTERM
 	go func() {
 		<-sigs
 		log.Infof("action: sigterm_received | result: success | client_id: %v", c.config.ID)
@@ -132,7 +127,20 @@ func (c *Client) StartClientLoop() {
 		)
 	}
 
-	if err := sendWinnersQuery(c.conn); err != nil {
+	c.conn.Close()
+
+	time.Sleep(2 * time.Second)
+
+	if err := c.createClientSocket(); err != nil {
+		log.Criticalf(
+			"action: create_client_socket | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		os.Exit(1)
+	}
+
+	if err := sendWinnersQuery(c.conn, stringToInt(c.config.ID)); err != nil {
 		log.Criticalf(
 			"action: send_winners_query | result: fail | client_id: %v | error: %v",
 			c.config.ID,
@@ -157,5 +165,4 @@ func (c *Client) StartClientLoop() {
 	)
 
 	c.conn.Close()
-
 }
