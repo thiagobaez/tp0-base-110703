@@ -3,27 +3,27 @@ import logging
 import signal
 from .utils import Bet, decode_bets, store_bets, send_confirmation, load_bets, has_won, send_winners, receive_query
 
-CANT_AGENCIES = 5
 
 class Server:
-    def __init__(self, port, listen_backlog):
+    def __init__(self, port, listen_backlog, num_clients):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self.winners = []  
+        self.num_clients = num_clients
 
     def run(self):
         
         signal.signal(signal.SIGTERM, self.__handle_shutdown)
 
-        for _ in range(CANT_AGENCIES):
+        for _ in range(self.num_clients):
             client_sock = self.__accept_new_connection()
             self.__handle_bets(client_sock)
         
         self.__perform_lottery()
         
-        for _ in range(CANT_AGENCIES):
+        for _ in range(self.num_clients):
             client_sock = self.__accept_new_connection()
             self.__handle_query(client_sock)
 

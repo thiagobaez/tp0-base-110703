@@ -37,6 +37,7 @@ def docker_compose_generate(output_filename: str, number_of_clients: int):
         f.write(f"    entrypoint: {SERVER_ENTRYPOINT}\n")
         f.write("    environment:\n")
         f.write(f"      - PYTHONUNBUFFERED={SERVER_ENV_PYTHONUNBUFFERED}\n")
+        f.write(f"      - NUM_CLIENTS={number_of_clients}\n")
         f.write("    networks:\n")
         f.write(f"      - {NETWORK}\n")
         f.write("    volumes:\n")
