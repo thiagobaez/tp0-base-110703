@@ -112,7 +112,6 @@ class Server:
             if is_winner_query and agency_id:
                 agency_winners = [dni for (agency, dni) in self.winners if agency == agency_id]
                 send_winners(client_sock, agency_winners)
-                logging.info(f'action: consulta_ganadores | result: success | cant_ganadores: {len(agency_winners)}')
         except Exception as e:
             logging.error(f"action: handle_query | result: fail | error: {e}")
         finally:
@@ -140,7 +139,6 @@ class Server:
             send_confirmation(client_sock, True)
             logging.info(f'action: apuestas_confirmadas | result: success | agency_id: {agency_id}')
             
-            # Notificar que se completó Fase 1
             with self.phase_1_done:
                 self.agencies_finished_count += 1
                 if self.agencies_finished_count == self.num_clients:
