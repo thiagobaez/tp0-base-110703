@@ -77,7 +77,7 @@ class Server:
                 # El sorteo ya está completado en esta fase
                 agency_winners = [dni for (agency, dni) in self.winners if agency == agency_id]
                 send_winners(client_sock, agency_winners)
-                logging.info(f'action: consulta_ganadores | result: success | cant_ganadores: {len(agency_winners)}')
+                logging.info(f'action: respuesta_ganadores | result: success | agency_id: {agency_id} | cant_ganadores: {len(agency_winners)}')
             
         except Exception as e:
             logging.error(f"action: receive_query | result: fail | error: {e}")
