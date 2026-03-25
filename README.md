@@ -4,109 +4,208 @@
 
 **Padrón**: 110703
 
-## Ejercicio 5: Sistema de Quinielas Distribuido
+## Ejercicio 8
 
-### Descripción General
+## Descripción General
 
-Este ejercicio implementa un sistema de gestión de apuestas de quinielas distribuido entre clientes (agencias) y un servidor central (Lotería Nacional). Los clientes envían apuestas al servidor, quien las almacena y persiste en una base de datos CSV.
+Se ha modificado el servidor para que acepte conexiones y procese mensajes de múltiples clientes **en paralelo** utilizando multithreading en lugar del modelo secuencial. El servidor ahora puede manejar varias agencias simultáneamente, mejorando significativamente la concurrencia del sistema.
 
-### Campos de la Apuesta
+---
 
-Cada apuesta contiene:
-- **Agencia**: ID de la agencia (extraído del config del cliente)
-- **Nombre**: Nombre de la persona
-- **Apellido**: Apellido de la persona
-- **DNI**: Documento de identidad (sin dígito verificador)
-- **Nacimiento**: Fecha de nacimiento (formato ISO: YYYY-MM-DD)
-- **Número**: Número apostado (entero)
+## Cambios Principales Realizados
 
-### Protocolo de Comunicación
+### 1. **Introducción de Threading**
 
-#### Formato del Mensaje
-
-```
-[Header (2 bytes)][Payload (N bytes)]
+#### Importaciones Agregadas
+```python
+import threading
+import time
 ```
 
-- **Header**: Tamaño del payload en big-endian (16 bits)
-- **Payload**: Datos serializados separados por comas (CSV)
+Se incorporó el módulo `threading` para crear y gestionar múltiples hilos de ejecución de forma paralela.
 
-#### Ejemplo de Datos Serializados
-```
-1,Thiago,Baez,44555543,2003-02-11,592
-```
-
-#### Confirmación del Servidor
-
-```
-[Tipo (1 byte)][Estado (1 byte)]
+#### Variables de Control de Sincronización
+```python
+self.lock = threading.Lock()
+self.phase_1_done = threading.Condition(self.lock)
+self._shutdown_event = threading.Event()
+self._active_threads = []
 ```
 
-- **Tipo**: `0x01` (mensaje de confimación de apuesta)
-- **Estado**: 
-  - `0x01` → Éxito
-  - `0x00` → Error en el servidor
+**Propósito de cada mecanismo:**
+- `self.lock`: Mutex para proteger acceso a variables compartidas
+- `self.phase_1_done`: Condition variable para sincronización entre fases
+- `self._shutdown_event`: Señal para cierre graceful del servidor
+- `self._active_threads`: Lista para rastrear todos los hilos activos
 
-### Compilación y Ejecución
+---
 
-#### Prerrequisitos
-- Docker y Docker Compose
+## Estructura del Servidor: Tres Fases
 
-#### Comando de Ejecución
+### **FASE 1: Recepción de Apuestas (Paralela)**
 
-```bash
-# Iniciar contenedores
-make docker-compose-up
-
-# Ver logs en tiempo real
-make docker-compose-logs
-
-# Detener contenedores
-make docker-compose-down
+```
+┌─────────────────────────────────────┐
+│   Aceptar conexiones en bucle       │
+├─────────────────────────────────────┤
+│ Para cada agencia:                  │
+│  ├─ Crear nuevo Thread              │
+│  ├─ Procesar apuestas concurrently  │
+│  └─ Almacenarlas en CSV             │
+└─────────────────────────────────────┘
+        ↓
+Esperar condition variable (todas terminen)
+        ↓
+   FASE 2
 ```
 
+**Código:**
+```python
+while client_count < self.num_clients and not self._shutdown_event.is_set():
+    client_sock = self.__accept_new_connection()
+    
+    client_thread = threading.Thread(
+        target=self.__handle_client_connection,
+        args=(client_sock,)
+    )
+    self._active_threads.append(client_thread)
+    client_thread.start()
+    client_count += 1
+```
 
-### Implementación Detallada
+**Qué sucede en cada thread:**
+- Recibe apuestas del cliente
+- Almacena cada lote en CSV
+- Notifica al servidor cuando término
 
-#### Lado Cliente (Go)
+---
 
-**`client/common/bet.go`**
-- `sendall()`: Implementa la lógica de short-write evitando pérdida de datos
-- `recvall()`: Implementa la lógica de short-read asegurando recepción completa
-- `sendMessage()`: Serializa datos con encabezado de tamaño
-- `sendBet()`: Formatea una apuesta como string CSV
-- `receiveMessage()`: Recibe y valida confirmación del servidor
+### **FASE 2: Ejecución de la Lotería (Secuencial)**
 
-**`client/common/client.go`**
-- `StartClientLoop()`: Loop principal que envía apuestas repetidamente
-- Logging estructurado con niveles (INFO, CRITICAL)
+```
+Fase 1 completada (todos los threads finalizados)
+        ↓
+Cargar todas las apuestas del CSV
+        ↓
+Iterar y encontrar ganadores
+        ↓
+Guardar lista de ganadores en memoria
+```
 
-#### Lado Servidor (Python)
+**Por qué es secuencial:** No pueden haber más apuestas mientras se ejecuta la lotería.
 
-**`server/common/utils.py`**
-- `Bet`: Clase que representa una apuesta
-- `recvall()`: Implementa recepción completa de datos
-- `sendall()`: Implementa envío completo de datos
-- `receive_bytes_from_socket()`: Lee header y payload
-- `decode_bet()`: Parsea CSV a objeto Bet
-- `send_confirmation()`: Envía respuesta binaria al cliente
-- `store_bets()`: Persiste apuestas en CSV (función proporcionada por cátedra)
+---
 
-**`server/common/server.py`**
-- `run()`: Loop de aceptación de conexiones
-- `__handle_client_connection()`: Procesa una apuesta y envía confirmación
+### **FASE 3: Consultas de Ganadores (Paralela)**
 
-### Aspectos Técnicos Implementados
+```
+Lotería completada (sorteo_completed = True)
+        ↓
+┌──────────────────────────────────┐
+│ Aceptar nuevas conexiones        │
+├──────────────────────────────────┤
+│ Para cada agencia:               │
+│  ├─ Criar nuevo Thread           │
+│  ├─ Recibir query de ganadores   │
+│  └─ Enviar respuesta             │
+└──────────────────────────────────┘
+        ↓
+Esperar que todos terminen
+```
 
-#### Manejo de Errores
-- Validación de formato de datos
-- Detección de desconexiones abruptas
-- Manejo de errores de I/O en sockets
+---
 
-#### Short Read/Write
-- Loops en `sendall()` y `recvall()` aseguran envío/recepción completa
-- Evita pérdida de datos por buffers parciales del SO
+## Mecanismos de Sincronización Implementados
 
-#### Serialización
-- Datos serializados como CSV para facilitar parseo y persistencia
-- Encabezado de tamaño (2 bytes) precede cada mensaje
+### 1. **Lock (Mutex) - threading.Lock()**
+
+**Uso:** Proteger secciones críticas
+
+```python
+self.lock = threading.Lock()
+```
+
+Garantiza que solo un thread pueda ejecutar cierta sección de código a la vez.
+
+### 2. **Condition Variable - threading.Condition()**
+
+**Uso:** Sincronización entre fase 1 y fase 2
+
+**Es más eficiente que polling** porque:
+- Los threads se ponen en espera (no consumen CPU)
+- Se despiertan automáticamente cuando todos han terminado
+- Evita busy-waiting
+
+### 3. **Event - threading.Event()**
+
+**Uso:** Cierre graceful del servidor
+
+```python
+self._shutdown_event = threading.Event()
+
+def __handle_shutdown(self, signum, frame):
+    self._shutdown_event.set()
+    self._server_socket.close()
+```
+
+Los threads verifican periódicamente si deben detener su ejecución:
+```python
+while client_count < self.num_clients and not self._shutdown_event.is_set():
+    # continuar aceptando conexiones
+```
+
+---
+
+
+### **Lista de Ganadores**
+
+```python
+self.winners = []  # Variable compartida
+```
+
+- Se modifica en FASE 2 (un solo thread ejecuta `__perform_lottery()`)
+- Se lee en FASE 3 (protegida por sincronización de fases)
+- Acceso seguro porque no hay race condition
+
+---
+
+
+## Flujo de Ejecución Completo
+
+```
+┌─────────────────────────────────┐
+│  Inicio del Servidor            │
+│  (thread principal)             │
+└─────────────────────┬───────────┘
+                      │
+         ┌────────────┴────────────┐
+         │                         │
+    ┌────▼────┐            ┌──────▼──────┐
+    │ FASE 1  │            │   espera    │
+    │ Aceptar │            │ condition   │
+    │ threads │            └──────┬──────┘
+    └────┬────┘                  │
+         │         ┌─────────────┘
+    ┌────▼────────┐
+    │Todos los    │
+    │threads      │
+    │finalizaron  │
+    └────┬────────┘
+         │
+    ┌────▼────────┐
+    │FASE 2       │
+    │Ejecutar     │
+    │Lotería      │
+    └────┬────────┘
+         │
+    ┌────▼────────────┐
+    │FASE 3           │
+    │Aceptar queries  │
+    │en paralelo      │
+    └────┬────────────┘
+         │
+    ┌────▼────────────┐
+    │ Servidor        │
+    │ Finalizado      │
+    └─────────────────┘
+```
