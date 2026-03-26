@@ -6,13 +6,13 @@
 
 ## Ejercicio 8
 
-## Descripción General
+### Descripción General
 
-Se ha modificado el servidor para que acepte conexiones y procese mensajes de múltiples clientes **en paralelo** utilizando multithreading en lugar del modelo secuencial. El servidor ahora puede manejar varias agencias simultáneamente, mejorando significativamente la concurrencia del sistema.
+Se modifico el servidor para que acepte conexiones y procese mensajes de múltiples clientes en paralelo usando threads en lugar del modelo secuencial. El servidor ahora puede manejar varias agencias simultáneamente, mejorando significativamente la concurrencia del sistema.
 
 ---
 
-## Cambios Principales Realizados
+### Cambios Principales Realizados
 
 ### 1. **Introducción de Threading**
 
@@ -38,7 +38,6 @@ self._active_threads = []
 - `self._shutdown_event`: Señal para cierre graceful del servidor
 - `self._active_threads`: Lista para rastrear todos los hilos activos
 
----
 
 ## Estructura del Servidor: Tres Fases
 
@@ -73,7 +72,7 @@ while client_count < self.num_clients and not self._shutdown_event.is_set():
     client_count += 1
 ```
 
-**Qué sucede en cada thread:**
+**Qué pasa en cada thread:**
 - Recibe apuestas del cliente
 - Almacena cada lote en CSV
 - Notifica al servidor cuando término
@@ -92,9 +91,7 @@ Iterar y encontrar ganadores
 Guardar lista de ganadores en memoria
 ```
 
-**Por qué es secuencial:** No pueden haber más apuestas mientras se ejecuta la lotería.
 
----
 
 ### **FASE 3: Consultas de Ganadores (Paralela)**
 
@@ -105,7 +102,7 @@ Lotería completada (sorteo_completed = True)
 │ Aceptar nuevas conexiones        │
 ├──────────────────────────────────┤
 │ Para cada agencia:               │
-│  ├─ Criar nuevo Thread           │
+│  ├─ Crear nuevo Thread           │
 │  ├─ Recibir query de ganadores   │
 │  └─ Enviar respuesta             │
 └──────────────────────────────────┘
@@ -113,7 +110,6 @@ Lotería completada (sorteo_completed = True)
 Esperar que todos terminen
 ```
 
----
 
 ## Mecanismos de Sincronización Implementados
 
@@ -154,8 +150,6 @@ while client_count < self.num_clients and not self._shutdown_event.is_set():
     # continuar aceptando conexiones
 ```
 
----
-
 
 ### **Lista de Ganadores**
 
@@ -167,45 +161,3 @@ self.winners = []  # Variable compartida
 - Se lee en FASE 3 (protegida por sincronización de fases)
 - Acceso seguro porque no hay race condition
 
----
-
-
-## Flujo de Ejecución Completo
-
-```
-┌─────────────────────────────────┐
-│  Inicio del Servidor            │
-│  (thread principal)             │
-└─────────────────────┬───────────┘
-                      │
-         ┌────────────┴────────────┐
-         │                         │
-    ┌────▼────┐            ┌──────▼──────┐
-    │ FASE 1  │            │   espera    │
-    │ Aceptar │            │ condition   │
-    │ threads │            └──────┬──────┘
-    └────┬────┘                  │
-         │         ┌─────────────┘
-    ┌────▼────────┐
-    │Todos los    │
-    │threads      │
-    │finalizaron  │
-    └────┬────────┘
-         │
-    ┌────▼────────┐
-    │FASE 2       │
-    │Ejecutar     │
-    │Lotería      │
-    └────┬────────┘
-         │
-    ┌────▼────────────┐
-    │FASE 3           │
-    │Aceptar queries  │
-    │en paralelo      │
-    └────┬────────────┘
-         │
-    ┌────▼────────────┐
-    │ Servidor        │
-    │ Finalizado      │
-    └─────────────────┘
-```
