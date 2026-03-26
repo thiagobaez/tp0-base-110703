@@ -243,11 +243,3 @@ Byte 0:    0x03 (IDX_WINNERS_LIST)
 Bytes 1-2: Tamaño en bytes (big-endian)
 Bytes 3+:  CSV "dni1,dni2,dni3,..."
 ```
-
-**Ejemplo: Agencia 1 recibe 2 ganadores**
-```
-┌────────┬───────────────┬──────────────────┐
-│ 0x03   │ 0x00 0x17     │12345678,44444444 │
-└────────┴───────────────┴──────────────────┘
-         Size = 23 bytes   (17 hex = 23 dec)
-```
