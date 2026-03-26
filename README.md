@@ -4,43 +4,101 @@
 
 **Padrón**: 110703
 
-## Ejercicio 1
- 
+---
 
-El propósito de este ejercicio es desarrollar un script en Bash llamado `generar-compose.sh`, cuya función será automatizar la creación de un archivo `.yaml` con la configuración necesaria para un entorno de Docker Compose.
+## Ejercicio 2: Configuración Inyectada mediante Docker Volumes
 
-El archivo generado deberá contemplar:
+### Descripción del Problema
 
-- Un servicio que actuará como servidor.
-- Un número **N** de servicios cliente.
-- Una red compartida que permita la comunicación entre todos los servicios.
+**Sin Ejercicio 2 (Base):**
+- Cambiar `config.ini` o `config.yaml` requiere reconstruir la imagen Docker con `docker build`
+- Las imágenes tienen la configuración hardcodeada en el momento del build
+- Modificar parámetros implica: stop → build → up (proceso lento)
 
-El script Bash funcionará como intermediario, delegando la generación del contenido del archivo al programa `mi-generador.py`, que será el encargado de construir la estructura final del YAML.
+**Con Ejercicio 2:**
+- Los archivos de configuración se inyectan en tiempo de ejecución
+- Modificar configuración solo requiere cambiar el archivo y reiniciar el container
+- No es necesario reconstruir la imagen
 
-Este script podrá ser modificado o ampliado en ejercicios posteriores, incorporando nuevas funcionalidades según los requerimientos.
+### Solución: Docker Volumes
 
-## Permisos de ejecución
+Se mapean archivos de configuración del HOST hacia los containers usando volúmenes:
 
-Si aparecen errores relacionados con permisos al intentar ejecutar el script, es necesario habilitar su ejecución con el siguiente comando:
+#### **Servidor (Python)**
 
-```bash
-chmod +x generar-compose.sh
+**Archivo necesario en HOST:**
+```
+./server/config.ini
 ```
 
-## Uso
 
-Para ejecutar el script:
-
-```bash
-./generar-compose.sh <output_filename> <number_of_clients>
+**Mapeo en docker-compose-dev.yaml:**
+```yaml
+services:
+  server:
+    container_name: server
+    image: server:latest
+    entrypoint: python3 /main.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOGGING_LEVEL=DEBUG
+    volumes:
+      - ./server/config.ini:/config.ini:ro
+    networks:
+      - testing_net
 ```
 
-## Como usar la salida generada
+**Cómo funciona:**
+1. El servidor se inicia en el container
+2. Lee `/config.ini` desde el container (que es un mount del HOST)
+3. El servidor interpreta las variables de configuración
 
-Una vez que se generó el archivo, se puede usar para desplegar el entorno usando el Makefile del proyecto:
+#### **Cliente (Go)**
 
-```bash
-make docker-compose-up
+**Archivo necesario en HOST:**
+```
+./client/config.yaml
 ```
 
-Aclaración: el nombre del archivo generado debe ser `docker-compose-dev.yaml`. Si se quiere usar otro con el makefile, hay que modificar el mismo.
+**Mapeo en docker-compose-dev.yaml:**
+```yaml
+services:
+  client1:
+    container_name: client1
+    image: client:latest
+    entrypoint: /client
+    environment:
+      - CLI_ID=1
+      - CLI_LOG_LEVEL=DEBUG
+    volumes:
+      # HOST PATH          CONTAINER PATH     FLAGS
+      - ./client/config.yaml:/config.yaml
+    networks:
+      - testing_net
+    depends_on:
+      - server
+```
+
+**Para múltiples clientes:**
+```yaml
+  client1:
+    volumes:
+      - ./client/config.yaml:/config.yaml
+
+  client2:
+    volumes:
+      - ./client/config.yaml:/config.yaml
+
+  client3:
+    volumes:
+      - ./client/config.yaml:/config.yaml
+  # ... etc
+```
+
+#### Generar el archivo `docker-compose-dev.yaml`
+
+```bash
+./generar-compose.sh <output-filename.yaml> <num_of_clients>
+```
+
+
