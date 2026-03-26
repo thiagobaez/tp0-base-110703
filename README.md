@@ -43,7 +43,7 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
     volumes:
-      - ./server/config.ini:/config.ini:ro
+      - ./server/config.ini:/config.ini
     networks:
       - testing_net
 ```
